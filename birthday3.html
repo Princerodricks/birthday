@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Neon Sakura</title>
+
+<style>
+html, body {
+  margin: 0;
+  padding: 0;
+  background: #02010a;
+  overflow: hidden;
+  height: 100%;
+}
+
+#overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+  padding: 20px;
+}
+
+.text {
+  transition: opacity 1.2s ease;
+}
+
+.hidden {
+  opacity: 0;
+}
+
+#title {
+  font-family: 'Playfair Display', serif;
+  font-size: clamp(3rem, 8vw, 4.8rem);
+  background: linear-gradient(90deg,#ff7ac8,#ffd6a5,#c77dff);
+  -webkit-background-clip: text;
+  color: transparent;
+  text-shadow:
+    0 0 30px rgba(255,140,200,0.8),
+    0 0 80px rgba(255,140,200,1);
+}
+
+#subtitle {
+  margin-top: 18px;
+  font-size: 1.4rem;
+  color: rgba(255,255,255,0.85);
+  text-shadow: 0 0 30px rgba(255,200,220,0.6);
+}
+
+#final {
+  max-width: 700px;
+  font-size: 1.25rem;
+  line-height: 1.9;
+  color: rgba(255,255,255,0.9);
+  text-shadow: 0 0 25px rgba(255,180,210,0.4);
+}
+</style>
+</head>
+
+<body>
+
+<div id="overlay">
+  <div>
+    <div id="subtitle" class="text">
+      Like cherry blossoms, some moments fall softly… 🌸
+    </div>
+
+    <div id="title" class="text hidden">
+      Happy Birthday, Nicole🌸
+    </div>
+
+    <div id="final" class="text hidden">
+      Hope this year brings you calm days, big smiles, and little moments that quietly make everything better.<br><br>
+      Stay exactly the way you are — the world honestly needs more of that.<br><br>
+      Wishing you a beautiful year ahead.<br>
+      I hope this year surprises you in the best ways.
+    </div>
+  </div>
+</div>
+
+<!-- THREE -->
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/EffectComposer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/RenderPass.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.161.0/examples/js/postprocessing/UnrealBloomPass.js"></script>
+
+<script>
+/* ───────── TEXT TIMELINE ───────── */
+const subtitle = document.getElementById("subtitle");
+const title = document.getElementById("title");
+const finalText = document.getElementById("final");
+
+// Step 1 → show Happy Birthday, hide subtitle
+setTimeout(() => {
+  subtitle.classList.add("hidden");
+  title.classList.remove("hidden");
+}, 3000);
+
+// Step 2 → hide Happy Birthday
+setTimeout(() => {
+  title.classList.add("hidden");
+}, 6000);
+
+// Step 3 → show final message
+setTimeout(() => {
+  finalText.classList.remove("hidden");
+}, 7500);
+
+/* ───────── THREE.JS SCENE (UNCHANGED) ───────── */
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x02010a, 0.06);
+
+const camera = new THREE.PerspectiveCamera(65, innerWidth/innerHeight, 0.1, 100);
+camera.position.z = 8;
+
+const renderer = new THREE.WebGLRenderer({ antialias:true });
+renderer.setSize(innerWidth, innerHeight);
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.7;
+document.body.appendChild(renderer.domElement);
+
+scene.add(new THREE.AmbientLight(0xffc1d9, 0.8));
+
+const flowerMat = new THREE.ShaderMaterial({
+  transparent:true,
+  blending:THREE.AdditiveBlending,
+  uniforms:{ time:{value:0} },
+  vertexShader:`
+    varying vec2 vUv;
+    void main(){ vUv=uv;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.);
+    }
+  `,
+  fragmentShader:`
+    uniform float time;
+    varying vec2 vUv;
+    float flower(vec2 p){
+      float r=length(p);
+      float a=atan(p.y,p.x);
+      float petals=sin(a*8.+time*2.)*0.25;
+      return smoothstep(0.5,0.,r+petals);
+    }
+    void main(){
+      vec2 p=vUv*2.-1.;
+      float f=flower(p);
+      vec3 col=vec3(1.0,0.5,0.8)*f*2.5;
+      gl_FragColor=vec4(col,f);
+    }
+  `
+});
+scene.add(new THREE.Mesh(new THREE.PlaneGeometry(5,5), flowerMat));
+
+const PETAL_COUNT = 9000;
+const petalGeo = new THREE.BufferGeometry();
+const pos = new Float32Array(PETAL_COUNT*3);
+const speed = new Float32Array(PETAL_COUNT);
+const rot = new Float32Array(PETAL_COUNT);
+
+for(let i=0;i<PETAL_COUNT;i++){
+  pos[i*3]=(Math.random()-0.5)*20;
+  pos[i*3+1]=Math.random()*20;
+  pos[i*3+2]=(Math.random()-0.5)*12;
+  speed[i]=0.2+Math.random()*0.6;
+  rot[i]=Math.random()*Math.PI*2;
+}
+
+petalGeo.setAttribute("position",new THREE.BufferAttribute(pos,3));
+petalGeo.setAttribute("speed",new THREE.BufferAttribute(speed,1));
+petalGeo.setAttribute("rot",new THREE.BufferAttribute(rot,1));
+
+const petalMat = new THREE.ShaderMaterial({
+  transparent:true,
+  depthWrite:false,
+  blending:THREE.AdditiveBlending,
+  uniforms:{ time:{value:0} },
+  vertexShader:`
+    uniform float time;
+    attribute float speed;
+    attribute float rot;
+    varying float vAlpha;
+    void main(){
+      vec3 p=position;
+      p.y=mod(p.y-time*speed,20.0)-10.0;
+      p.x+=sin(time+rot)*0.5;
+      vAlpha=0.6+sin(time+rot)*0.4;
+      gl_Position=projectionMatrix*modelViewMatrix*vec4(p,1.);
+      gl_PointSize=4.0;
+    }
+  `,
+  fragmentShader:`
+    varying float vAlpha;
+    void main(){
+      float d=length(gl_PointCoord-0.5);
+      float a=smoothstep(0.5,0.1,d)*vAlpha;
+      vec3 col=vec3(1.0,0.7,0.85);
+      gl_FragColor=vec4(col,a);
+    }
+  `
+});
+scene.add(new THREE.Points(petalGeo, petalMat));
+
+const composer=new THREE.EffectComposer(renderer);
+composer.addPass(new THREE.RenderPass(scene,camera));
+composer.addPass(new THREE.UnrealBloomPass(
+  new THREE.Vector2(innerWidth,innerHeight),
+  2.4,1.2,0.15
+));
+
+function animate(t){
+  t*=0.001;
+  flowerMat.uniforms.time.value=t;
+  petalMat.uniforms.time.value=t;
+  camera.position.y=Math.sin(t*0.4)*0.4;
+  camera.lookAt(0,0,0);
+  composer.render();
+  requestAnimationFrame(animate);
+}
+animate(0);
+
+addEventListener("resize",()=>{
+  camera.aspect=innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth,innerHeight);
+  composer.setSize(innerWidth,innerHeight);
+});
+</script>
+
+</body>
+</html>
